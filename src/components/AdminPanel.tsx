@@ -25,7 +25,11 @@ export function AdminPanel() {
         const unsubscribe = onSnapshot(collection(db, 'allowed_users'), (snapshot) => {
             const userData: UserRecord[] = [];
             snapshot.forEach((doc) => {
-                userData.push(doc.data() as UserRecord);
+                const data = doc.data();
+                userData.push({
+                    ...data,
+                    email: data.email || doc.id,
+                } as UserRecord);
             });
             // Sort: pending first, then by name
             userData.sort((a, b) => {
@@ -34,6 +38,8 @@ export function AdminPanel() {
                 return (a.displayName || '').localeCompare(b.displayName || '');
             });
             setUsers(userData);
+        }, (error) => {
+            console.error("Error fetching users snapshot:", error);
         });
 
         return () => unsubscribe();
@@ -99,8 +105,8 @@ export function AdminPanel() {
                                     key={f}
                                     onClick={() => setFilter(f)}
                                     className={`neo-btn font-black uppercase px-3 py-1 border-2 border-black text-sm ${filter === f
-                                            ? 'bg-black text-white'
-                                            : 'bg-white text-black'
+                                        ? 'bg-black text-white'
+                                        : 'bg-white text-black'
                                         }`}
                                 >
                                     {f === 'all' ? `SEMUA (${users.length})` :
@@ -122,8 +128,8 @@ export function AdminPanel() {
                                     <div
                                         key={u.email}
                                         className={`flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 border-4 border-black neo-shadow-sm ${u.status === 'pending' ? 'bg-[#FFDE59]' :
-                                                u.status === 'approved' ? 'bg-[#A3E635]' :
-                                                    u.status === 'rejected' ? 'bg-[#FF5252]/20' : 'bg-white'
+                                            u.status === 'approved' ? 'bg-[#A3E635]' :
+                                                u.status === 'rejected' ? 'bg-[#FF5252]/20' : 'bg-white'
                                             }`}
                                     >
                                         <div className="flex items-center gap-3 flex-grow min-w-0">
@@ -140,8 +146,8 @@ export function AdminPanel() {
                                                 <p className="font-black text-sm truncate">{u.displayName || 'No Name'}</p>
                                                 <p className="text-xs font-bold text-gray-700 truncate">{u.email}</p>
                                                 <span className={`inline-block text-[10px] font-black uppercase px-2 py-0.5 border-2 border-black mt-1 ${u.status === 'pending' ? 'bg-[#FFDE59]' :
-                                                        u.status === 'approved' ? 'bg-[#00E676] text-white' :
-                                                            'bg-[#FF5252] text-white'
+                                                    u.status === 'approved' ? 'bg-[#00E676] text-white' :
+                                                        'bg-[#FF5252] text-white'
                                                     }`}>
                                                     {u.role === 'admin' ? '👑 ADMIN' : u.status.toUpperCase()}
                                                 </span>
