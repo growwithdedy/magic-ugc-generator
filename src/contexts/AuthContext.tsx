@@ -27,37 +27,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     useEffect(() => {
-        // Timeout to prevent stuck on "Memuat..." if Firebase fails
+        // Safety timeout: if Firebase doesn't respond in 3s, show login page
         const timeout = setTimeout(() => {
             setIsLoading(false);
-        }, 5000);
+        }, 3000);
 
-        const unsubscribe = onAuthChange(async (firebaseUser) => {
-            clearTimeout(timeout);
-            setUser(firebaseUser);
-            if (firebaseUser && firebaseUser.email) {
-                // Try to register user in Firestore (non-critical, can fail)
-                try {
-                    await registerPendingUser(firebaseUser);
-                } catch (error) {
-                    console.warn('registerPendingUser failed (non-critical):', error);
-                }
-                // Always check access — admin email matched locally without Firestore
-                try {
-                    const access = await checkUserAccess(firebaseUser.email);
-                    setAccessStatus(access.status);
-                    setRole(access.role);
-                } catch (error) {
-                    console.error('checkUserAccess failed:', error);
+        let unsubscribe = () => { };
+
+        try {
+            unsubscribe = onAuthChange(async (firebaseUser) => {
+                clearTimeout(timeout);
+                setUser(firebaseUser);
+
+                if (firebaseUser && firebaseUser.email) {
+                    // Register user in Firestore (non-critical, can fail)
+                    try {
+                        await registerPendingUser(firebaseUser);
+                    } catch (err) {
+                        console.warn('registerPendingUser failed (non-critical):', err);
+                    }
+
+                    // Always check access — admin email is matched locally
+                    try {
+                        const access = await checkUserAccess(firebaseUser.email);
+                        setAccessStatus(access.status);
+                        setRole(access.role);
+                    } catch (err) {
+                        console.error('checkUserAccess failed:', err);
+                        setAccessStatus('unknown');
+                        setRole('user');
+                    }
+                } else {
                     setAccessStatus('unknown');
                     setRole('user');
                 }
-            } else {
-                setAccessStatus('unknown');
-                setRole('user');
-            }
+
+                setIsLoading(false);
+            });
+        } catch (err) {
+            console.error('Firebase onAuthChange setup failed:', err);
             setIsLoading(false);
-        });
+        }
 
         return () => {
             clearTimeout(timeout);
