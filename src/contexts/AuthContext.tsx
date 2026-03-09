@@ -36,15 +36,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             clearTimeout(timeout);
             setUser(firebaseUser);
             if (firebaseUser && firebaseUser.email) {
+                // Try to register user in Firestore (non-critical, can fail)
                 try {
-                    // Register/update user in Firestore
                     await registerPendingUser(firebaseUser);
-                    // Check access
+                } catch (error) {
+                    console.warn('registerPendingUser failed (non-critical):', error);
+                }
+                // Always check access — admin email matched locally without Firestore
+                try {
                     const access = await checkUserAccess(firebaseUser.email);
                     setAccessStatus(access.status);
                     setRole(access.role);
                 } catch (error) {
-                    console.error('Auth check failed:', error);
+                    console.error('checkUserAccess failed:', error);
                     setAccessStatus('unknown');
                     setRole('user');
                 }
