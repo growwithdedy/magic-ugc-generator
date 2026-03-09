@@ -14,7 +14,9 @@ export interface UserAccessData {
     updatedAt: any;
 }
 
-const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || '';
+const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL || 'growwithdedy@gmail.com').toLowerCase();
+
+const isAdminEmail = (email: string) => email.toLowerCase() === ADMIN_EMAIL;
 
 export const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
@@ -26,8 +28,8 @@ export const signOutUser = async () => {
 };
 
 export const checkUserAccess = async (email: string): Promise<{ status: AccessStatus; role: string }> => {
-    // Admin email is always approved
-    if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+    // Admin email is always approved — checked first, no Firestore needed
+    if (isAdminEmail(email)) {
         return { status: 'approved', role: 'admin' };
     }
 
@@ -46,6 +48,10 @@ export const checkUserAccess = async (email: string): Promise<{ status: AccessSt
         return { status: 'unknown', role: 'user' };
     } catch (error) {
         console.error('Error checking user access:', error);
+        // If Firestore fails but email is admin, still approve
+        if (isAdminEmail(email)) {
+            return { status: 'approved', role: 'admin' };
+        }
         return { status: 'unknown', role: 'user' };
     }
 };
