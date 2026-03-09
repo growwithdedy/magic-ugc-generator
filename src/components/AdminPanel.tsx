@@ -35,7 +35,10 @@ export function AdminPanel() {
             userData.sort((a, b) => {
                 if (a.status === 'pending' && b.status !== 'pending') return -1;
                 if (a.status !== 'pending' && b.status === 'pending') return 1;
-                return (a.displayName || '').localeCompare(b.displayName || '');
+
+                const nameA = a.displayName || a.email || '';
+                const nameB = b.displayName || b.email || '';
+                return nameA.localeCompare(nameB);
             });
             setUsers(userData);
         }, (error) => {
