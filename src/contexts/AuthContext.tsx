@@ -21,9 +21,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const refreshAccess = async () => {
         if (!user?.email) return;
-        const access = await checkUserAccess(user.email);
-        setAccessStatus(access.status);
-        setRole(access.role);
+
+        try {
+            await registerPendingUser(user);
+        } catch (err: any) {
+            alert(`Error registering user: ${err.message || 'Unknown error'}`);
+        }
+
+        try {
+            const access = await checkUserAccess(user.email);
+            setAccessStatus(access.status);
+            setRole(access.role);
+        } catch (err: any) {
+            alert(`Error checking access: ${err.message || 'Unknown error'}`);
+        }
     };
 
     useEffect(() => {

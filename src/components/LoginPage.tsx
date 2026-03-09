@@ -67,12 +67,26 @@ export function LoginPage() {
                             Atau hubungi admin di: <strong>growwithdedy@gmail.com</strong>
                         </p>
 
-                        <button
-                            onClick={logout}
-                            className="neo-btn mt-6 bg-[#FF5252] text-white font-black uppercase px-6 py-2 border-2 border-black text-sm"
-                        >
-                            LOGOUT
-                        </button>
+                        <div className="flex flex-col gap-3 mt-6">
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await useAuth().refreshAccess();
+                                    } catch (e: any) {
+                                        alert("Refresh failed: " + e.message);
+                                    }
+                                }}
+                                className="neo-btn bg-[#FF90E8] text-black font-black uppercase px-6 py-3 border-4 border-black neo-shadow text-sm"
+                            >
+                                🔄 CEK STATUS ULANG
+                            </button>
+                            <button
+                                onClick={logout}
+                                className="neo-btn bg-[#FF5252] text-white font-black uppercase px-6 py-2 border-2 border-black text-sm"
+                            >
+                                LOGOUT
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
