@@ -66,8 +66,10 @@ export function AdminPanel() {
 
     if (role !== 'admin') return null;
 
-    const pendingCount = users.filter(u => u.status === 'pending').length;
-    const filteredUsers = filter === 'all' ? users : users.filter(u => u.status === filter);
+    const pendingCount = users.filter(u => (u.status || 'pending') === 'pending').length;
+    const filteredUsers = filter === 'all'
+        ? users
+        : users.filter(u => (u.status || 'pending') === filter);
 
     return (
         <>
