@@ -40,14 +40,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(firebaseUser);
 
                 if (firebaseUser && firebaseUser.email) {
-                    // Register user in Firestore (non-critical, can fail)
+                    const userEmail = firebaseUser.email.toLowerCase();
+                    const ADMIN = (import.meta.env.VITE_ADMIN_EMAIL || 'growwithdedy@gmail.com').toLowerCase();
+
+                    // Bulletproof admin check — no Firestore or service needed
+                    if (userEmail === ADMIN) {
+                        setAccessStatus('approved');
+                        setRole('admin');
+                        setIsLoading(false);
+                        // Fire-and-forget Firestore registration for admin
+                        registerPendingUser(firebaseUser).catch(() => { });
+                        return;
+                    }
+
+                    // Non-admin: register in Firestore (non-critical, can fail)
                     try {
                         await registerPendingUser(firebaseUser);
                     } catch (err) {
                         console.warn('registerPendingUser failed (non-critical):', err);
                     }
 
-                    // Always check access — admin email is matched locally
+                    // Check access from Firestore
                     try {
                         const access = await checkUserAccess(firebaseUser.email);
                         setAccessStatus(access.status);
