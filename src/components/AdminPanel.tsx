@@ -29,6 +29,9 @@ export function AdminPanel() {
                 userData.push({
                     ...data,
                     email: data.email || doc.id,
+                    status: data.status || 'pending',
+                    role: data.role || 'user',
+                    displayName: data.displayName || 'No Name',
                 } as UserRecord);
             });
             // Sort: pending first, then by name
