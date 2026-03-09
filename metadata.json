@@ -1,0 +1,8 @@
+{
+  "name": "Magic UGC Generator",
+  "description": "AI-powered storyboard and affiliate content generator with image and audio synthesis.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

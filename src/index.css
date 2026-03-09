@@ -1,0 +1,73 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800;900&display=swap');
+
+@theme {
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-[#FDFBF7] text-black antialiased;
+    background-image: radial-gradient(#000 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}
+
+@layer utilities {
+  .neo-shadow {
+    box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 1);
+  }
+  .neo-shadow-sm {
+    box-shadow: 3px 3px 0px 0px rgba(0, 0, 0, 1);
+  }
+}
+
+@layer components {
+  .neo-card {
+    @apply border-4 border-black;
+    box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 1);
+  }
+  .neo-btn {
+    @apply transition-all active:translate-x-[4px] active:translate-y-[4px] active:shadow-none;
+  }
+  .neo-btn:hover {
+    @apply -translate-x-[2px] -translate-y-[2px];
+    box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 1);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+.animate-scale-in {
+  animation: scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
