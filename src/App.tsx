@@ -1,100 +1,114 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Instagram, ExternalLink } from 'lucide-react';
-import {
-  VOICE_OPTIONS,
-  LANGUAGE_OPTIONS,
-  TONE_OPTIONS,
-  SCENE_COUNT_OPTIONS,
-  MODEL_FOCUS_MODES,
-  PRODUCT_FOCUS_MODES,
+import { Instagram, ExternalLink, Key, Eye, EyeOff, HelpCircle, Lock, X } from 'lucide-react';
+import { 
+  VOICE_OPTIONS, 
+  LANGUAGE_OPTIONS, 
+  TONE_OPTIONS, 
+  SCENE_COUNT_OPTIONS, 
+  MODEL_FOCUS_MODES, 
+  PRODUCT_FOCUS_MODES, 
   STORYBOARD_TYPES,
-  FALLBACK_MODEL_SHOTS
+  FALLBACK_MODEL_SHOTS,
+  PRODUCT_CONSISTENCY
 } from './constants';
-import {
-  ProductImage,
-  GeneratedImage,
-  ShotType
+import { 
+  ProductImage, 
+  GeneratedImage, 
+  ShotType 
 } from './types';
-import {
-  fileToGenerativePart,
-  dataUrlToGenerativePart,
-  adjustImageAspectRatio,
-  playClickSound,
-  pcmToWav,
-  callGenerativeApiWithRetry
+import { 
+  fileToGenerativePart, 
+  dataUrlToGenerativePart, 
+  adjustImageAspectRatio, 
+  playClickSound, 
+  pcmToWav, 
+  callGenerativeApiWithRetry 
 } from './utils/helpers';
-import {
-  CustomButton,
-  UploadArea,
-  AssetThumbnail,
-  AddMoreProducts
+import { 
+  CustomButton, 
+  UploadArea, 
+  AssetThumbnail, 
+  AddMoreProducts 
 } from './components/UI';
 import { ImageCard } from './components/ImageCard';
-import { useAuth } from './contexts/AuthContext';
-import { LoginPage } from './components/LoginPage';
-import { AdminPanel } from './components/AdminPanel';
+import { updateApiKey, getApiKey, getGeminiModel, getImageModel, validateApiKey } from './services/geminiService';
+
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
 
 export default function App() {
-  const { user, accessStatus, role, isLoading: authLoading, logout } = useAuth();
-
-  // API Key Management
-  const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
-  const [apiKeyInput, setApiKeyInput] = useState(() => localStorage.getItem('gemini_api_key') || '');
-
-  const handleSaveApiKey = () => {
-    const key = apiKeyInput.trim();
-    if (key) {
-      localStorage.setItem('gemini_api_key', key);
-      setGeminiApiKey(key);
-    }
-  };
-
-  const handleClearApiKey = () => {
-    localStorage.removeItem('gemini_api_key');
-    setGeminiApiKey('');
-    setApiKeyInput('');
-  };
-
   // State Management
-  const [appState, setAppState] = useState('intro');
-  const [generationMode, setGenerationMode] = useState<string | null>(null);
+  const [appState, setAppState] = useState('intro'); 
+  const [generationMode, setGenerationMode] = useState<string | null>(null); 
   const [modelImage, setModelImage] = useState<File | null>(null);
-  const [productImages, setProductImages] = useState<ProductImage[]>([]);
+  const [productImages, setProductImages] = useState<ProductImage[]>([]); 
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
-  const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<number | null>(null); 
   const [apiError, setApiError] = useState('');
-  const [isDetailsConfirmed, setIsDetailsConfirmed] = useState(false);
-
+  const [isDetailsConfirmed, setIsDetailsConfirmed] = useState(false); 
+  
   // Recommendations and selections
   const [backgroundRecommendations, setBackgroundRecommendations] = useState<string[]>([]);
   const [selectedBackground, setSelectedBackground] = useState('');
-  const [focusMode, setFocusMode] = useState(MODEL_FOCUS_MODES[0].value);
-  const [storyboardType, setStoryboardType] = useState('COMMERCIAL');
-  const [aspectRatio, setAspectRatio] = useState('9:16');
-  const [sceneCount, setSceneCount] = useState(8);
+  const [focusMode, setFocusMode] = useState(MODEL_FOCUS_MODES[0].value); 
+  const [storyboardType, setStoryboardType] = useState('COMMERCIAL'); 
+  const [aspectRatio, setAspectRatio] = useState('9:16'); 
+  const [sceneCount, setSceneCount] = useState(8); 
   const [manualBackground, setManualBackground] = useState('');
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
-
+  const [showGenerateModal, setShowGenerateModal] = useState(false); 
+  
   // Results
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
 
   // --- AUDIO GENERATOR STATE ---
   const [commercialScript, setCommercialScript] = useState('');
-  const [selectedVoiceName, setSelectedVoiceName] = useState(VOICE_OPTIONS[0].name);
-  const [selectedLanguage, setSelectedLanguage] = useState(LANGUAGE_OPTIONS[0].code);
-  const [selectedTone, setSelectedTone] = useState(TONE_OPTIONS[0].value);
-  const [selectedDuration, setSelectedDuration] = useState('30');
+  const [selectedVoiceName, setSelectedVoiceName] = useState(VOICE_OPTIONS[0].name); 
+  const [selectedLanguage, setSelectedLanguage] = useState(LANGUAGE_OPTIONS[0].code); 
+  const [selectedTone, setSelectedTone] = useState(TONE_OPTIONS[0].value); 
+  const [selectedDuration, setSelectedDuration] = useState('30'); 
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioError, setAudioError] = useState('');
-
+  
   // Jingle Audio State
   const [introAudioUrl, setIntroAudioUrl] = useState<string | null>(null);
   const [showVideoOptions, setShowVideoOptions] = useState(false);
 
+  const [userApiKey, setUserApiKey] = useState('');
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [tempKey, setTempKey] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isValidatingKey, setIsValidatingKey] = useState(false);
+  const [keyValidationStatus, setKeyValidationStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
+
   const ASPECT_RATIOS = ['9:16', '1:1', '16:9'];
+  
+  useEffect(() => {
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey) {
+      setUserApiKey(savedKey);
+      setTempKey(savedKey);
+      updateApiKey(savedKey);
+      
+      // Silently validate on load
+      validateApiKey(savedKey).then(isValid => {
+        if (!isValid) {
+          // If saved key is invalid, maybe it expired or was wrong
+          // We don't clear it automatically to avoid annoying the user, 
+          // but we could show a warning.
+          console.warn("Saved API Key is invalid.");
+        }
+      });
+    }
+  }, []);
 
   useEffect(() => {
     document.title = "Magic UGC Generator | by growwithdedy";
@@ -107,14 +121,16 @@ export default function App() {
       setFocusMode(PRODUCT_FOCUS_MODES[0].value);
     }
   }, [generationMode]);
-
+  
   useEffect(() => {
     const preFetchIntroAudio = async () => {
       try {
-        const apiKey = geminiApiKey;
-        const text = "Welcome to Magic UGC Generator! Let's create magic.";
-        const voiceName = "Puck";
+        const apiKey = getApiKey();
+        if (!apiKey) return;
 
+        const text = "Welcome to Magic UGC Generator! Let's create magic.";
+        const voiceName = "Puck"; 
+        
         const payload = {
           contents: [{ parts: [{ text: text }] }],
           generationConfig: {
@@ -130,16 +146,14 @@ export default function App() {
           },
           model: "gemini-2.5-flash-preview-tts"
         };
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const result = await response.json();
+    
+        const result = await callGenerativeApiWithRetry(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`,
+          payload
+        );
+    
         const pcmData = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-
+        
         if (pcmData) {
           const wavUrl = pcmToWav(pcmData);
           setIntroAudioUrl(wavUrl);
@@ -153,7 +167,7 @@ export default function App() {
       preFetchIntroAudio();
     }
   }, [appState]);
-
+  
   const handleStartApp = () => {
     playClickSound();
     if (introAudioUrl) {
@@ -163,20 +177,32 @@ export default function App() {
     setAppState('welcome');
   };
 
-  const detectProductName = async (file: File) => {
+  const analyzeProductImage = async (file: File) => {
     try {
       const imagePart = await fileToGenerativePart(file);
-      const apiKey = geminiApiKey;
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-      const prompt = "Identifikasi produk dalam gambar ini. Berikan nama yang singkat, detail, dan deskriptif dalam Bahasa Indonesia (maksimal 4 kata, contoh: 'Kemeja Flanel Coklat', 'Botol Serum Vitamin C'). Jawab HANYA dengan nama produk.";
+      const apiKey = getApiKey(); 
+      if (!apiKey) return { name: file.name, description: '' };
+
+      const model = getGeminiModel();
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const prompt = "Identify this product. Provide a concise name (max 3 words) and a brief but detailed description focusing on its physical appearance, color, and key features. Output format: Name | Description";
       const payload = { contents: [{ parts: [{ text: prompt }, imagePart] }] };
-      const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!response.ok) return file.name;
-      const result = await response.json();
-      return result.candidates?.[0]?.content?.parts?.[0]?.text.trim() || file.name;
+      
+      const result = await callGenerativeApiWithRetry(apiUrl, payload, 2, 15000); // 2 retries, 15s timeout
+      const text = result?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+      
+      if (text.includes('|')) {
+        const parts = text.split('|');
+        const name = parts[0]?.trim();
+        const description = parts.slice(1).join('|').trim();
+        return { name: name || file.name, description: description || '' };
+      }
+      
+      return { name: text || file.name, description: '' };
     } catch (error) {
-      console.error("Product detection failed for one image:", error);
-      return file.name;
+      console.error("Product analysis failed:", error);
+      // Fallback to file name to prevent getting stuck in "Mendeteksi..."
+      return { name: file.name, description: '' };
     }
   };
 
@@ -190,31 +216,40 @@ export default function App() {
   }, [appState]);
 
   const onProductDrop = useCallback((acceptedFiles: File[]) => {
-    const newProducts = acceptedFiles.map(file => ({
+    const newProducts = acceptedFiles.map(file => ({ 
       id: Math.random().toString(36).substr(2, 9),
-      file,
-      name: 'Mendeteksi...'
+      file, 
+      name: 'Mendeteksi...' 
     }));
 
     setProductImages(prev => {
       const updatedProducts = [...prev, ...newProducts].slice(0, 2);
-      setIsDetailsConfirmed(false);
+      setIsDetailsConfirmed(false); 
       return updatedProducts;
     });
 
     newProducts.forEach(async (product) => {
-      const detectedName = await detectProductName(product.file);
-      setProductImages(prev => prev.map(p =>
-        p.id === product.id ? { ...p, name: detectedName } : p
+      // Safety timeout: if detection takes more than 20s, fallback to file name
+      const safetyTimeout = setTimeout(() => {
+        setProductImages(prev => prev.map(p => 
+          (p.id === product.id && p.name === 'Mendeteksi...') ? { ...p, name: product.file.name, description: '' } : p
+        ));
+      }, 20000);
+
+      const { name, description } = await analyzeProductImage(product.file);
+      clearTimeout(safetyTimeout);
+      
+      setProductImages(prev => prev.map(p => 
+        p.id === product.id ? { ...p, name, description } : p
       ));
     });
 
   }, [appState]);
-
+  
   const removeProductImage = (indexToRemove: number) => {
     setProductImages(prev => {
       const newImages = prev.filter((_, index) => index !== indexToRemove);
-      setIsDetailsConfirmed(false);
+      setIsDetailsConfirmed(false); 
       if (appState === 'selecting') {
         if (newImages.length === 0 || (generationMode === 'model' && !modelImage)) {
           handleReset();
@@ -225,10 +260,10 @@ export default function App() {
       return newImages;
     });
   };
-
+  
   const removeModelImage = () => {
     setModelImage(null);
-    handleReset();
+    handleReset(); 
   }
 
   const handleReplaceModel = (file: File) => {
@@ -239,23 +274,30 @@ export default function App() {
   };
 
   const handleReplaceProduct = async (index: number, file: File) => {
-    setIsDetailsConfirmed(false);
-
-    setProductImages(prev => {
-      const newImages = [...prev];
-      newImages[index] = { ...newImages[index], file, name: 'Mendeteksi...' };
-      return newImages;
-    });
-
-    const detectedName = await detectProductName(file);
-
+    const newId = Math.random().toString(36).substr(2, 9);
+    setIsDetailsConfirmed(false); 
+    
     setProductImages(prev => {
       const newImages = [...prev];
       if (newImages[index]) {
-        newImages[index] = { ...newImages[index], name: detectedName };
+        newImages[index] = { ...newImages[index], id: newId, file, name: 'Mendeteksi...', description: '' };
       }
       return newImages;
     });
+
+    // Safety timeout for replacement
+    const safetyTimeout = setTimeout(() => {
+      setProductImages(prev => prev.map(p => 
+        (p.id === newId && p.name === 'Mendeteksi...') ? { ...p, name: file.name, description: '' } : p
+      ));
+    }, 20000);
+
+    const { name, description } = await analyzeProductImage(file);
+    clearTimeout(safetyTimeout);
+    
+    setProductImages(prev => prev.map(p => 
+      p.id === newId ? { ...p, name, description } : p
+    ));
 
     if (appState === 'selecting') {
       setTimeout(() => handleGetRecommendations(true), 0);
@@ -268,7 +310,7 @@ export default function App() {
       newImages[index] = { ...newImages[index], name: newName };
       return newImages;
     });
-    setIsDetailsConfirmed(false);
+    setIsDetailsConfirmed(false); 
   };
 
   const handleConfirmDetails = () => {
@@ -286,7 +328,7 @@ export default function App() {
       setApiError("Mode Model membutuhkan foto model.");
       return;
     }
-
+    
     setIsLoading(true);
     setLoadingMessage(isReload ? 'Memuat ulang rekomendasi...' : 'Mendeteksi produk...');
     setApiError('');
@@ -300,14 +342,21 @@ export default function App() {
 
       if (generationMode === 'model' && modelImage) {
         const modelImagePart = await fileToGenerativePart(modelImage);
-        imageParts.unshift(modelImagePart);
+        imageParts.unshift(modelImagePart); 
         prompt = `Analisis model dan produk (${productNames.join(', ')}) ini, lalu berikan rekomendasi latar.`;
       } else if (generationMode === 'product') {
         prompt = `Analisis produk-produk ini (${productNames.join(', ')}), dan berikan rekomendasi 7 latar belakang E-commerce yang paling cocok untuk menampilkan produk secara visual yang bersih and menarik, tanpa melibatkan model manusia.`;
       }
+      
+      const apiKey = getApiKey(); 
+      if (!apiKey) {
+        setApiError("Harap atur API Key terlebih dahulu di menu pengaturan (icon kunci).");
+        setIsLoading(false);
+        return;
+      }
 
-      const apiKey = geminiApiKey;
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const model = getGeminiModel();
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
       const systemPrompt = `Anda adalah seorang art director yang SANGAT PAHAM ESTETIKA LOKAL INDONESIA. 
       Tugas Anda adalah menganalisis foto model/produk, lalu memberikan 7 rekomendasi latar (background) yang bernuansa INDONESIA (lokal) dan kekinian.
@@ -329,10 +378,7 @@ export default function App() {
         }
       };
 
-      const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
-
-      const result = await response.json();
+      const result = await callGenerativeApiWithRetry(apiUrl, payload);
       const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!responseText) throw new Error("API response is empty.");
 
@@ -351,21 +397,24 @@ export default function App() {
       setIsLoading(false);
     }
   };
-
+  
   const handleGenerateCommercialScript = async () => {
     playClickSound();
     setIsGeneratingScript(true);
     setAudioError('');
-
+    
     try {
       const productNames = productImages.map(p => p.name).join(' dan ');
       const namesToUse = productNames || "Produk Fashion Premium";
 
-      const apiKey = geminiApiKey;
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const apiKey = getApiKey(); 
+      if (!apiKey) throw new Error("API Key tidak ditemukan.");
 
+      const model = getGeminiModel();
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      
       const languageName = LANGUAGE_OPTIONS.find(l => l.code === selectedLanguage)?.name || 'Bahasa Indonesia';
-
+      
       let prompt = `
       Bertindaklah sebagai copywriter video pendek (TikTok/Reels). Buatkan naskah voiceover yang SANGAT NATURAL, LUWES, dan SEPERTI ORANG NGOBROL untuk produk: "${namesToUse}".
       
@@ -376,7 +425,7 @@ export default function App() {
 
       const payload = { contents: [{ parts: [{ text: prompt }] }] };
       const result = await callGenerativeApiWithRetry(apiUrl, payload);
-
+      
       const script = result?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       if (script) {
         setCommercialScript(script);
@@ -398,12 +447,14 @@ export default function App() {
     setIsGeneratingAudio(true);
     setAudioError('');
     setAudioUrl(null);
-
+    
     const tonePrefix = TONE_OPTIONS.find(t => t.value === selectedTone)?.prompt || '';
     const finalScript = tonePrefix + commercialScript;
 
     try {
-      const apiKey = geminiApiKey;
+      const apiKey = getApiKey();
+      if (!apiKey) throw new Error("API Key tidak ditemukan.");
+
       const payload = {
         contents: [{ parts: [{ text: finalScript }] }],
         generationConfig: {
@@ -411,8 +462,8 @@ export default function App() {
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: selectedVoiceName,
-                languageCode: selectedLanguage
+                voiceName: selectedVoiceName, 
+                languageCode: selectedLanguage 
               }
             }
           }
@@ -427,7 +478,7 @@ export default function App() {
 
       const pcmData = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (pcmData) {
-        const wavUrl = pcmToWav(pcmData);
+        const wavUrl = pcmToWav(pcmData); 
         setAudioUrl(wavUrl);
       } else {
         throw new Error("Gagal menghasilkan audio.");
@@ -444,8 +495,11 @@ export default function App() {
   const generateDynamicShots = async (imageParts: any[], mode = 'model', style = 'COMMERCIAL', count = 10): Promise<ShotType[]> => {
     setLoadingMessage(`Merancang Storyboard (${count} Scenes)...`);
     try {
-      const apiKey = geminiApiKey;
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const apiKey = getApiKey(); 
+      if (!apiKey) throw new Error("API Key tidak ditemukan.");
+
+      const model = getGeminiModel();
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
       let contextPrompt = "";
       let stylePrompt = "";
@@ -493,10 +547,7 @@ export default function App() {
         }
       };
 
-      const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!response.ok) throw new Error("Gagal membuat storyboard dinamis.");
-
-      const result = await response.json();
+      const result = await callGenerativeApiWithRetry(apiUrl, payload);
       const parsed = JSON.parse(result.candidates?.[0]?.content?.parts?.[0]?.text);
       return parsed.shots || FALLBACK_MODEL_SHOTS;
 
@@ -508,15 +559,15 @@ export default function App() {
 
   const handleGenerate = async () => {
     playClickSound();
-    setShowGenerateModal(false);
+    setShowGenerateModal(false); 
 
     const background = selectedBackground === 'custom_bg' ? manualBackground.trim() : selectedBackground;
-
+    
     if (productImages.length === 0 || !background) {
       setApiError("Harap unggah minimal 1 produk dan pilih latar.");
       return;
     }
-
+    
     if (generationMode === 'model' && !modelImage) {
       setApiError("Mode Model membutuhkan foto model.");
       return;
@@ -531,20 +582,32 @@ export default function App() {
     setAudioUrl(null);
 
     try {
-      const apiKey = geminiApiKey;
+      // Mandatory API Key Selection for Gemini 3.1 Flash Image
+      if (window.aistudio) {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          await window.aistudio.openSelectKey();
+        }
+      }
+
+      const apiKey = getApiKey();
+      if (!apiKey) throw new Error("API Key tidak ditemukan.");
+
       const productImageParts = await Promise.all(productImages.map(p => fileToGenerativePart(p.file)));
       let allImageParts = [...productImageParts];
-
+      
       let currentShotTypes: ShotType[] = [];
-
+      
       if (generationMode === 'model' && modelImage) {
         const modelImagePart = await fileToGenerativePart(modelImage);
-        allImageParts.unshift(modelImagePart);
+        allImageParts.unshift(modelImagePart); 
         currentShotTypes = await generateDynamicShots(productImageParts, 'model', storyboardType, sceneCount);
       } else {
         currentShotTypes = await generateDynamicShots(productImageParts, 'product', storyboardType, sceneCount);
       }
-
+      
+      const productDescriptions = productImages.map(p => p.description).filter(Boolean).join('. ');
+      
       const generatedResults: GeneratedImage[] = [];
       const shotsToGenerate = currentShotTypes.slice(0, sceneCount);
 
@@ -554,37 +617,46 @@ export default function App() {
         setLoadingMessage(`Menciptakan Scene... (${i + 1}/${shotsToGenerate.length}: ${shotName})`);
 
         const prompt = `
+          ${PRODUCT_CONSISTENCY}
           OBJECTIVE: INSERT THE EXACT PRODUCT FROM THE INPUT IMAGE INTO THE NEW SCENE.
+          PRODUCT DESCRIPTION: ${productDescriptions}
           SCENE CONTEXT: ${shot.prompt}
           BACKGROUND: ${background}
         `;
-
+        
+        const imageModel = getImageModel();
         const payload = {
           contents: [{ parts: [{ text: prompt }, ...allImageParts] }],
-          generationConfig: { responseModalities: ['IMAGE'] },
+          generationConfig: { 
+            responseModalities: ['IMAGE'],
+            imageConfig: {
+              aspectRatio: aspectRatio,
+              imageSize: "1K"
+            }
+          },
         };
-
+ 
         const result = await callGenerativeApiWithRetry(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${imageModel}:generateContent?key=${apiKey}`, 
           payload
         );
-
+        
         const base64Data = result?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
         if (base64Data) {
           const processedUrl = await adjustImageAspectRatio(base64Data, aspectRatio);
           const videoRatioText = aspectRatio === '9:16' ? '--ar 9:16' : (aspectRatio === '16:9' ? '--ar 16:9' : '--ar 1:1');
-
+          
           let videoPromptText = shot.videoPrompt;
           if (generationMode === 'product') videoPromptText += ", NO human faces";
 
-          generatedResults.push({
-            id: Date.now() + i,
-            url: processedUrl,
+          generatedResults.push({ 
+            id: Date.now() + i, 
+            url: processedUrl, 
             angle: shotName,
             videoPrompt: `create video ${videoPromptText}, ${videoRatioText}`,
             script: shot.script,
-            originalPrompt: shot.prompt
+            originalPrompt: shot.prompt 
           });
         }
       }
@@ -605,17 +677,29 @@ export default function App() {
 
   const handleRegenerate = async (imageId: number, revisionText: string) => {
     const originalImage = generatedImages.find(img => img.id === imageId);
-    if (!originalImage) return;
-
-    setRegeneratingId(imageId);
+    if (!originalImage) return; 
+  
+    setRegeneratingId(imageId); 
     setApiError('');
-
+    
     try {
-      const apiKey = geminiApiKey;
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`;
+      // Mandatory API Key Selection for Gemini 3.1 Flash Image
+      if (window.aistudio) {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          await window.aistudio.openSelectKey();
+        }
+      }
 
+      const apiKey = getApiKey();
+      if (!apiKey) throw new Error("API Key tidak ditemukan.");
+
+      const imageModel = getImageModel();
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${imageModel}:generateContent?key=${apiKey}`;
+      
       let payload;
       const background = selectedBackground === 'custom_bg' ? manualBackground.trim() : selectedBackground;
+      const productDescriptions = productImages.map(p => p.description).filter(Boolean).join('. ');
 
       if (!revisionText || revisionText.trim() === '') {
         const productImageParts = await Promise.all(productImages.map(p => fileToGenerativePart(p.file)));
@@ -624,42 +708,65 @@ export default function App() {
           allImageParts.unshift(await fileToGenerativePart(modelImage));
         }
 
-        const prompt = `RE-SHOOT MODE. BACKGROUND: ${background}. Angle: ${originalImage.originalPrompt || originalImage.angle}.`;
+        const prompt = `
+          ${PRODUCT_CONSISTENCY}
+          RE-SHOOT MODE. 
+          PRODUCT DESCRIPTION: ${productDescriptions}
+          BACKGROUND: ${background}. 
+          Angle: ${originalImage.originalPrompt || originalImage.angle}.
+        `;
         payload = {
           contents: [{ parts: [{ text: prompt }, ...allImageParts] }],
-          generationConfig: { responseModalities: ['IMAGE'] },
+          generationConfig: { 
+            responseModalities: ['IMAGE'],
+            imageConfig: {
+              aspectRatio: aspectRatio,
+              imageSize: "1K"
+            }
+          },
         };
       } else {
         const imageToRevisePart = await dataUrlToGenerativePart(originalImage.url);
-        const prompt = `PHOTO RETOUCHING. INSTRUKSI: "${revisionText}".`;
+        const prompt = `
+          ${PRODUCT_CONSISTENCY}
+          PHOTO RETOUCHING. 
+          PRODUCT DESCRIPTION: ${productDescriptions}
+          INSTRUKSI: "${revisionText}".
+        `;
         payload = {
           contents: [{ parts: [{ text: prompt }, imageToRevisePart] }],
-          generationConfig: { responseModalities: ['IMAGE'] },
+          generationConfig: { 
+            responseModalities: ['IMAGE'],
+            imageConfig: {
+              aspectRatio: aspectRatio,
+              imageSize: "1K"
+            }
+          },
         };
       }
-
+  
       const result = await callGenerativeApiWithRetry(apiUrl, payload);
       const base64Data = result?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-
+  
       if (base64Data) {
         const processedUrl = await adjustImageAspectRatio(base64Data, aspectRatio);
-        const newImage: GeneratedImage = {
-          id: Date.now(),
-          url: processedUrl,
+        const newImage: GeneratedImage = { 
+          id: Date.now(), 
+          url: processedUrl, 
           angle: originalImage.angle,
           videoPrompt: originalImage.videoPrompt,
           customDetail: revisionText ? revisionText.trim() : undefined,
           script: originalImage.script,
-          originalPrompt: originalImage.originalPrompt
+          originalPrompt: originalImage.originalPrompt 
         };
         setGeneratedImages(prev => prev.map(img => img.id === imageId ? newImage : img));
       }
-
+  
     } catch (error: any) {
       console.error("Image revision failed:", error);
       alert(error.message || 'Gagal menerapkan revisi.');
     } finally {
-      setRegeneratingId(null);
+      setRegeneratingId(null); 
     }
   };
 
@@ -675,20 +782,20 @@ export default function App() {
     setSelectedBackground('');
     setManualBackground('');
     setGeneratedImages([]);
-    setFocusMode(MODEL_FOCUS_MODES[0].value);
+    setFocusMode(MODEL_FOCUS_MODES[0].value); 
     setCommercialScript('');
     setAudioUrl(null);
     setSelectedLanguage(LANGUAGE_OPTIONS[0].code);
     setSelectedVoiceName(VOICE_OPTIONS[0].name);
     setSelectedTone(TONE_OPTIONS[0].value);
-    setShowVideoOptions(false);
+    setShowVideoOptions(false); 
     setShowGenerateModal(false);
     setStoryboardType('COMMERCIAL');
     setIsDetailsConfirmed(false);
     setSelectedDuration('30');
     setSceneCount(8);
   };
-
+  
   const handleBackToSelection = () => {
     playClickSound();
     setAppState('selecting');
@@ -702,6 +809,45 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleSaveKey = async () => {
+    playClickSound();
+    if (!tempKey.trim()) {
+      setKeyValidationStatus('invalid');
+      return;
+    }
+
+    setIsValidatingKey(true);
+    setKeyValidationStatus('idle');
+    
+    const isValid = await validateApiKey(tempKey);
+    
+    setIsValidatingKey(false);
+    if (isValid) {
+      localStorage.setItem('gemini_api_key', tempKey);
+      setUserApiKey(tempKey);
+      updateApiKey(tempKey);
+      setKeyValidationStatus('valid');
+      setTimeout(() => {
+        setShowKeyModal(false);
+        setKeyValidationStatus('idle');
+      }, 1500);
+    } else {
+      setKeyValidationStatus('invalid');
+    }
+  };
+
+  const handleResetKey = () => {
+    playClickSound();
+    if (window.confirm('Apakah Anda yakin ingin menghapus API Key?')) {
+      localStorage.removeItem('gemini_api_key');
+      setUserApiKey('');
+      setTempKey('');
+      updateApiKey('');
+      setKeyValidationStatus('idle');
+      setShowKeyModal(false);
+    }
+  };
+
   const isReadyForSelection = () => {
     if (!isDetailsConfirmed) return false;
     if (generationMode === 'model') return modelImage !== null && productImages.length > 0 && !isLoading;
@@ -709,87 +855,8 @@ export default function App() {
     return false;
   };
 
-  // Auth loading state
-  if (authLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen w-full bg-[#FFE600] text-black border-[12px] border-black box-border">
-        <div className="animate-pulse text-center">
-          <div className="bg-white border-4 border-black px-8 py-4 neo-shadow inline-block">
-            <h2 className="text-2xl font-black uppercase tracking-tight">Memuat...</h2>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Not logged in or not approved — show login/pending page
-  if (!user || accessStatus !== 'approved') {
-    return <LoginPage />;
-  }
-
-  // API Key not set — show setup screen
-  if (!geminiApiKey) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen w-full bg-[#FFE600] text-black border-[12px] border-black box-border">
-        <div className="text-center max-w-lg mx-auto p-8 animate-scale-in">
-          <div className="inline-block bg-white border-4 border-black px-6 py-2 transform rotate-2 neo-shadow mb-6">
-            <h2 className="text-lg font-black uppercase tracking-widest">Setup API Key</h2>
-          </div>
-
-          <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase mb-8" style={{ textShadow: '4px 4px 0px #fff, 6px 6px 0px #000' }}>
-            MAGIC<br />UGC
-          </h1>
-
-          <div className="neo-card bg-white p-8">
-            <h3 className="text-lg font-black uppercase mb-4 border-b-4 border-black pb-3">
-              🔑 MASUKKAN API KEY
-            </h3>
-
-            <p className="text-sm font-bold text-gray-700 mb-4 text-left">
-              Masukkan API Key Google Gemini Anda.
-            </p>
-
-            <a
-              href="https://s.id/caradapatapikey"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block bg-[#00E5FF] text-black font-black uppercase text-xs px-4 py-2 border-2 border-black neo-shadow-sm mb-6 no-underline hover:bg-[#67e8f9] transition-colors"
-            >
-              📖 BACA CARA MENDAPATKAN API KEY GOOGLE DISINI
-            </a>
-
-            <input
-              type="password"
-              placeholder="Paste API Key di sini..."
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              className="w-full p-4 border-4 border-black bg-white text-black font-bold focus:bg-[#FFE066] focus:outline-none neo-shadow-sm mb-4 text-sm"
-            />
-
-            <button
-              onClick={handleSaveApiKey}
-              disabled={!apiKeyInput.trim()}
-              className="neo-btn w-full bg-[#A3E635] text-black font-black uppercase px-6 py-4 border-4 border-black neo-shadow text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              ✅ SIMPAN & MULAI
-            </button>
-
-            <button
-              onClick={logout}
-              className="neo-btn mt-4 bg-[#FF5252] text-white font-black uppercase px-6 py-2 border-2 border-black text-sm"
-            >
-              LOGOUT
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#FDFBF7] font-sans text-black antialiased flex flex-col selection:bg-[#00E5FF] selection:text-black">
-      {/* Admin Panel (floating button, only for admins) */}
-      <AdminPanel />
       {appState !== 'intro' && (
         <header className="px-6 py-4 border-b-[4px] border-black bg-white flex justify-between items-center top-0 z-20 sticky neo-shadow-sm">
           <div className="flex items-center gap-3">
@@ -800,11 +867,25 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <div className="flex flex-col items-end mr-2">
+              <span className="text-[8px] font-black uppercase tracking-tighter text-gray-500">Status API</span>
+              <div className="flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-full border border-black/20 ${userApiKey ? 'bg-[#A3E635] shadow-[0_0_8px_#A3E635]' : 'bg-[#FF5252] animate-pulse'}`}></div>
+                <span className={`text-[10px] font-black uppercase ${userApiKey ? 'text-[#00C853]' : 'text-[#FF5252]'}`}>
+                  {userApiKey ? 'Aktif' : 'Nonaktif'}
+                </span>
+              </div>
+            </div>
+            <button 
+              onClick={() => { playClickSound(); setShowKeyModal(true); }} 
+              className={`w-10 h-10 flex items-center justify-center border-2 border-black neo-shadow-sm transition-all ${userApiKey ? 'bg-[#A3E635]' : 'bg-[#FFDE59] animate-pulse'}`}
+              title="Set API Key"
+            >
+              <Key size={20} />
+            </button>
             {appState === 'result' && <button onClick={handleBackToSelection} className="neo-btn bg-white text-black font-black uppercase px-4 py-2 border-2 border-black text-sm">KEMBALI</button>}
             {appState === 'selecting' && generatedImages.length > 0 && <button onClick={handleViewResults} className="neo-btn bg-[#FF90E8] text-black font-black uppercase px-4 py-2 border-2 border-black text-sm">RIWAYAT HASIL</button>}
             <button onClick={handleReset} className={`neo-btn font-black uppercase px-4 py-2 text-sm border-2 border-black ${appState === 'welcome' ? "bg-gray-200 text-gray-500 cursor-not-allowed shadow-none hover:transform-none" : "bg-[#FF5252] text-white"}`} disabled={appState === 'welcome'}>RESET</button>
-            <button onClick={handleClearApiKey} className="neo-btn font-black uppercase px-3 py-2 text-sm border-2 border-black bg-[#FFDE59] text-black" title="Ganti API Key">🔑</button>
-            <button onClick={logout} className="neo-btn font-black uppercase px-3 py-2 text-sm border-2 border-black bg-black text-white" title="Logout">🚪</button>
           </div>
         </header>
       )}
@@ -817,7 +898,7 @@ export default function App() {
                 <div className="inline-block bg-white border-4 border-black px-6 py-2 transform rotate-2 neo-shadow mb-6">
                   <h2 className="text-xl font-black uppercase tracking-widest">growwithdedy presents</h2>
                 </div>
-                <h1 className="text-7xl md:text-9xl font-black tracking-tighter mb-2 uppercase" style={{ textShadow: '6px 6px 0px #fff, 8px 8px 0px #000' }}>MAGIC<br />UGC</h1>
+                <h1 className="text-7xl md:text-9xl font-black tracking-tighter mb-2 uppercase" style={{ textShadow: '6px 6px 0px #fff, 8px 8px 0px #000' }}>MAGIC<br/>UGC</h1>
                 <div className="mt-16">
                   <button onClick={handleStartApp} className="neo-btn bg-[#00E5FF] text-black text-2xl font-black uppercase px-16 py-6 border-4 border-black neo-shadow">Mulai Sekarang!</button>
                 </div>
@@ -849,12 +930,12 @@ export default function App() {
                 <div className="mt-8">
                   {generationMode === 'model' ? (
                     <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-                      <UploadArea onDrop={onModelDrop} files={modelImage ? [{ file: modelImage, name: modelImage.name }] : []} title="1. UPLOAD MODEL" description="Maks. 1 Foto" onRemoveImage={removeModelImage} />
-                      <UploadArea onDrop={onProductDrop} files={productImages} title="2. UPLOAD PRODUK" description="Maks. 2 Foto" maxFiles={2} onRemoveImage={removeProductImage} />
+                      <UploadArea onDrop={onModelDrop} files={modelImage ? [{file: modelImage, name: modelImage.name}] : []} title="1. UPLOAD MODEL" description="Maks. 1 Foto" onRemoveImage={removeModelImage} />
+                      <UploadArea onDrop={onProductDrop} files={productImages} title="2. UPLOAD PRODUK" description="Maks. 2 Foto" maxFiles={2} onRemoveImage={removeProductImage}/>
                     </div>
                   ) : (
                     <div className="max-w-3xl mx-auto">
-                      <UploadArea onDrop={onProductDrop} files={productImages} title="UPLOAD PRODUK" description="Maks. 2 Foto" maxFiles={2} onRemoveImage={removeProductImage} />
+                      <UploadArea onDrop={onProductDrop} files={productImages} title="UPLOAD PRODUK" description="Maks. 2 Foto" maxFiles={2} onRemoveImage={removeProductImage}/>
                     </div>
                   )}
                   {productImages.length > 0 && (
@@ -964,7 +1045,7 @@ export default function App() {
               {apiError && !isLoading && <p className="text-black bg-[#FF5252] border-4 border-black font-black text-xl p-6 text-center neo-shadow mx-auto max-w-2xl uppercase">{apiError}</p>}
               {generatedImages.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 mb-20">
-                  {generatedImages.map((image, index) => <ImageCard key={image.id} image={image} index={index} onRegenerate={handleRegenerate} currentRatio={aspectRatio} isRegenerating={regeneratingId === image.id} initialStyle={storyboardType} generationMode={generationMode} apiKey={geminiApiKey} />)}
+                  {generatedImages.map((image, index) => <ImageCard key={image.id} image={image} index={index} onRegenerate={handleRegenerate} currentRatio={aspectRatio} isRegenerating={regeneratingId === image.id} initialStyle={storyboardType} generationMode={generationMode} />)}
                 </div>
               )}
               {appState === 'result' && (
@@ -994,7 +1075,7 @@ export default function App() {
                         <div className="flex items-center gap-3 mb-8 bg-black text-[#A3E635] p-3 neo-shadow-sm inline-flex"><h3 className="font-black text-xl uppercase">AUDIO PREVIEW</h3></div>
                         {audioUrl ? (
                           <div className="bg-white border-4 border-black p-6 text-center neo-shadow-sm animate-fade-in-up">
-                            <div className="w-16 h-16 bg-[#A3E635] border-4 border-black rounded-full flex items-center justify-center mx-auto mb-4 neo-shadow-sm"><svg className="w-8 h-8 text-black" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg></div>
+                            <div className="w-16 h-16 bg-[#A3E635] border-4 border-black rounded-full flex items-center justify-center mx-auto mb-4 neo-shadow-sm"><svg className="w-8 h-8 text-black" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
                             <audio controls src={audioUrl} className="w-full h-12 mb-6 border-2 border-black bg-gray-100" />
                             <a href={audioUrl} download="magic-affiliate-gen.wav" className="neo-btn block w-full bg-black text-[#FFDE59] text-sm font-black uppercase py-4 border-4 border-black text-center">DOWNLOAD WAV</a>
                           </div>
@@ -1005,7 +1086,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="mt-24 mb-24 text-center">
-                    <div className="inline-block bg-[#00E5FF] border-4 border-black px-6 py-2 mb-8 transform rotate-1 neo-shadow-sm"><h3 className="text-2xl font-black text-black uppercase">LANJUT KE VIDEO AI</h3></div><br />
+                    <div className="inline-block bg-[#00E5FF] border-4 border-black px-6 py-2 mb-8 transform rotate-1 neo-shadow-sm"><h3 className="text-2xl font-black text-black uppercase">LANJUT KE VIDEO AI</h3></div><br/>
                     {!showVideoOptions ? <button onClick={() => setShowVideoOptions(true)} className="neo-btn bg-black text-white px-12 py-5 font-black uppercase border-4 border-black text-xl inline-flex items-center gap-4">BUKA GENERATOR VIDEO <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg></button> : (
                       <div className="flex flex-col md:flex-row justify-center gap-6 animate-fade-in-up">
                         <button onClick={() => window.open('https://www.meta.ai', '_blank')} className="neo-btn bg-[#FF90E8] text-black px-8 py-5 font-black uppercase border-4 border-black inline-flex items-center justify-center gap-3 w-full md:w-auto text-lg">META AI</button>
@@ -1039,6 +1120,111 @@ export default function App() {
         </div>
       </main>
 
+      {showKeyModal && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="bg-white border-[4px] border-black max-w-md w-full rounded-[40px] overflow-hidden neo-shadow-lg animate-fade-in-up">
+            {/* Header */}
+            <div className="bg-[#FFDE59] p-8 border-b-[4px] border-black relative flex flex-col items-center">
+              <button 
+                onClick={() => setShowKeyModal(false)} 
+                className="absolute top-6 right-6 text-black/60 hover:text-black transition-colors"
+              >
+                <X size={28} strokeWidth={3} />
+              </button>
+              
+              <div className="w-20 h-16 bg-white border-[4px] border-black rounded-2xl flex items-center justify-center mb-4 neo-shadow-sm transform -rotate-2">
+                <Key size={36} strokeWidth={2.5} />
+              </div>
+              
+              <h3 className="text-3xl font-black uppercase tracking-tight">API KEY SETTING</h3>
+            </div>
+
+            {/* Body */}
+            <div className="p-8 space-y-8">
+              {/* Step 1 */}
+              <div className="text-center">
+                <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Langkah 1: Dapatkan API Key Anda</p>
+                <a 
+                  href="https://s.id/caradapatapikey" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="neo-btn bg-[#FFDE59] w-full py-4 border-[4px] border-black flex items-center justify-center gap-3 font-black text-sm uppercase group"
+                >
+                  <div className="bg-white border-2 border-black rounded-full p-0.5 group-hover:bg-black group-hover:text-white transition-colors">
+                    <HelpCircle size={18} strokeWidth={3} />
+                  </div>
+                  BACA CARA DAPATKAN API KEY DISINI
+                </a>
+              </div>
+
+              {/* Step 2 */}
+              <div className="text-center">
+                <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Langkah 2: Masukkan API Key Dibawah Ini</p>
+                <div className="relative group">
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    value={tempKey}
+                    onChange={(e) => {
+                      setTempKey(e.target.value);
+                      setKeyValidationStatus('idle');
+                    }}
+                    placeholder="........................................"
+                    className={`w-full p-5 pr-14 border-[4px] rounded-[20px] bg-white text-black font-bold text-lg neo-shadow-sm focus:outline-none transition-all ${
+                      keyValidationStatus === 'valid' ? 'border-[#00E676]' : 
+                      keyValidationStatus === 'invalid' ? 'border-[#FF5252]' : 'border-black'
+                    }`}
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={24} strokeWidth={2.5} /> : <Eye size={24} strokeWidth={2.5} />}
+                  </button>
+                </div>
+                {keyValidationStatus === 'valid' && (
+                  <p className="text-[#00E676] text-xs font-black mt-2 uppercase tracking-wider">✅ API Key Valid & Aktif!</p>
+                )}
+                {keyValidationStatus === 'invalid' && (
+                  <p className="text-[#FF5252] text-xs font-black mt-2 uppercase tracking-wider">❌ API Key Tidak Valid / Salah!</p>
+                )}
+              </div>
+
+              {/* Action Button */}
+              <button 
+                onClick={handleSaveKey}
+                disabled={isValidatingKey}
+                className={`w-full py-6 border-[4px] border-black rounded-[25px] font-black text-xl uppercase neo-shadow-lg transition-all active:scale-95 ${
+                  isValidatingKey ? 'bg-gray-200 cursor-wait' : 
+                  keyValidationStatus === 'valid' ? 'bg-[#00E676]' : 'bg-[#00E5FF] hover:translate-x-1 hover:translate-y-1 hover:shadow-none'
+                }`}
+              >
+                {isValidatingKey ? 'MEMVERIFIKASI...' : 
+                 keyValidationStatus === 'valid' ? 'BERHASIL DIAKTIFKAN' : 'SIMPAN & AKTIFKAN AKUN'}
+              </button>
+
+              {/* Reset Link */}
+              <div className="text-center">
+                <button 
+                  onClick={handleResetKey}
+                  className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] hover:text-[#FF5252] transition-colors border-b-2 border-transparent hover:border-[#FF5252]"
+                >
+                  HAPUS / RESET API KEY
+                </button>
+              </div>
+
+              {/* Footer Note */}
+              <div className="flex items-start gap-2 text-gray-400">
+                <Lock size={12} className="mt-0.5 shrink-0" />
+                <p className="text-[8px] font-bold leading-tight uppercase text-center w-full">
+                  API KEY DISIMPAN HANYA DI BROWSER LOKAL ANDA (LOCALSTORAGE) DAN TIDAK DIKIRIM KE SERVER MANAPUN.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <footer className="p-8 border-t-[4px] border-black text-center bg-[#FFDE59] mt-auto flex flex-col items-center justify-center gap-6">
         <div className="flex flex-col md:flex-row items-center justify-center gap-2">
           <p className="text-sm text-black font-black uppercase tracking-widest">2026 Magic UGC Generator</p>
@@ -1046,26 +1232,26 @@ export default function App() {
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-4">
-          <a
-            href="https://instagram.com/growwithdedy"
-            target="_blank"
-            rel="noopener noreferrer"
+          <a 
+            href="https://instagram.com/growwithdedy" 
+            target="_blank" 
+            rel="noopener noreferrer" 
             className="flex items-center gap-2 bg-white border-2 border-black px-4 py-2 font-black text-xs uppercase neo-shadow-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
           >
             <Instagram size={16} /> Instagram
           </a>
-          <a
-            href="https://threads.net/@growwithdedy"
-            target="_blank"
-            rel="noopener noreferrer"
+          <a 
+            href="https://threads.net/@growwithdedy" 
+            target="_blank" 
+            rel="noopener noreferrer" 
             className="flex items-center gap-2 bg-white border-2 border-black px-4 py-2 font-black text-xs uppercase neo-shadow-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
           >
             <span className="text-lg leading-none">@</span> Threads
           </a>
-          <a
-            href="https://lynk.id/growwithdedy"
-            target="_blank"
-            rel="noopener noreferrer"
+          <a 
+            href="https://lynk.id/growwithdedy" 
+            target="_blank" 
+            rel="noopener noreferrer" 
             className="flex items-center gap-2 bg-[#00E5FF] border-2 border-black px-4 py-2 font-black text-xs uppercase neo-shadow-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
           >
             <ExternalLink size={16} /> Tools Lainnya

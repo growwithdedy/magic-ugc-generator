@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GeneratedImage } from '../types';
 import { playClickSound, copyTextToClipboard, callGenerativeApiWithRetry } from '../utils/helpers';
+import { getApiKey, getGeminiModel } from '../services/geminiService';
 
 interface ImageCardProps {
   image: GeneratedImage;
@@ -10,22 +11,21 @@ interface ImageCardProps {
   isRegenerating: boolean;
   initialStyle: string;
   generationMode: string | null;
-  apiKey: string;
   key?: React.Key;
 }
 
-export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenerating, initialStyle, generationMode, apiKey }: ImageCardProps) => {
+export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenerating, initialStyle, generationMode }: ImageCardProps) => {
   const [revision, setRevision] = useState('');
   const [videoPrompt, setVideoPrompt] = useState(image.videoPrompt || '');
   const [copyStatus, setCopyStatus] = useState('COPY PROMPT');
-  const [isPromptUpdated, setIsPromptUpdated] = useState(false);
-
-  const [videoStyle, setVideoStyle] = useState(initialStyle || 'COMMERCIAL');
-  const [ugcSubStyle, setUgcSubStyle] = useState('SOFT');
-
+  const [isPromptUpdated, setIsPromptUpdated] = useState(false); 
+  
+  const [videoStyle, setVideoStyle] = useState(initialStyle || 'COMMERCIAL'); 
+  const [ugcSubStyle, setUgcSubStyle] = useState('SOFT'); 
+  
   const [scriptLanguage, setScriptLanguage] = useState('id-ID');
   const [generatedScript, setGeneratedScript] = useState(image.script || '');
-  const [isGeneratingScript, setIsGeneratingScript] = useState(false);
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false); 
 
   const handleRegenerateClick = () => {
     playClickSound();
@@ -37,19 +37,23 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
     playClickSound();
     copyTextToClipboard(videoPrompt);
     setCopyStatus('COPIED!');
-    setIsPromptUpdated(false);
+    setIsPromptUpdated(false); 
     setTimeout(() => setCopyStatus('COPY PROMPT'), 2000);
   };
 
   const handleAutoGenerateScript = async () => {
     playClickSound();
     setIsGeneratingScript(true);
-
+    
     try {
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const apiKey = getApiKey(); 
+      if (!apiKey) throw new Error("API Key tidak ditemukan.");
 
+      const model = getGeminiModel();
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      
       const languageName = scriptLanguage === 'id-ID' ? 'Bahasa Indonesia' : (scriptLanguage === 'ja-JP' ? 'Japanese' : 'English');
-
+      
       let stylePromptContext = "";
       if (videoStyle === 'COMMERCIAL') {
         stylePromptContext = "Gaya: Iklan Profesional (TVC). Nada: Meyakinkan, Elegan, Singkat, Punchy. Tujuannya branding dan sales.";
@@ -73,7 +77,7 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
       const payload = { contents: [{ parts: [{ text: prompt }] }] };
       const result = await callGenerativeApiWithRetry(apiUrl, payload);
       const script = result?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
+      
       if (script) setGeneratedScript(script);
 
     } catch (error) {
@@ -85,7 +89,7 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
 
   const handleGenerateVideoPrompt = (includeVoiceOver = true) => {
     playClickSound();
-
+    
     let styleKeywords = "";
     let cameraKeywords = "";
     let lightingKeywords = "";
@@ -108,10 +112,10 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
     const langContext = scriptLanguage === 'id-ID' ? "Bahasa Indonesia" : (scriptLanguage === 'ja-JP' ? "Japanese" : "English");
 
     let speakingInstruction = "";
-
+    
     if (includeVoiceOver) {
-      speakingInstruction = generatedScript.trim()
-        ? `, talking head shot (if model present), mouth moving naturally to pronounce "${generatedScript}", lip-sync compatible`
+      speakingInstruction = generatedScript.trim() 
+        ? `, talking head shot (if model present), mouth moving naturally to pronounce "${generatedScript}", lip-sync compatible` 
         : ", expressive movement, engaging visual flow";
     } else {
       speakingInstruction = ", no talking, no lip-sync, atmospheric sound only, cinematic b-roll style";
@@ -121,24 +125,24 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
 
     let baseVisual = image.videoPrompt ? image.videoPrompt.replace(/^create video\s+/i, '').split(',')[0] : `Shot of ${image.angle}`;
     if (image.customDetail) {
-      baseVisual = `${baseVisual}, featuring ${image.customDetail}`;
+       baseVisual = `${baseVisual}, featuring ${image.customDetail}`;
     }
-
+    
     let productConstraint = "";
     if (generationMode === 'product') {
       productConstraint = ", STRICTLY product focus, NO human faces, NO talent bodies, only hands or feet interaction allowed";
     }
 
     const newPrompt = `create video ${baseVisual}${productConstraint}, ${styleKeywords}, ${cameraKeywords}, ${lightingKeywords}${speakingInstruction}, ${langContext} accent hints, high fidelity, 4k, ${ratioText}`;
-
+    
     setVideoPrompt(newPrompt);
     setIsPromptUpdated(true);
   };
-
+  
   const handleDownloadImage = (e: React.MouseEvent) => {
     if (e) e.preventDefault();
     playClickSound();
-
+    
     const filename = `foto-magic-affiliate-${image.id}.png`;
 
     fetch(image.url)
@@ -151,7 +155,7 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-
+        
         setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
       })
       .catch(err => {
@@ -166,7 +170,7 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
   const getPreviewAspectClass = (ratio: string) => {
     if (ratio === '1:1') return 'aspect-[1/1]';
     if (ratio === '16:9') return 'aspect-[16/9]';
-    return 'aspect-[9/16]';
+    return 'aspect-[9/16]'; 
   };
 
   return (
@@ -183,15 +187,15 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
       )}
 
       <div className="border-[3px] border-black p-1 bg-gray-100 mt-8 mb-4">
-        <img
-          src={image.url}
-          alt={`Generated result: ${image.angle}`}
+        <img 
+          src={image.url} 
+          alt={`Generated result: ${image.angle}`} 
           className={`w-full h-auto object-cover border-2 border-black ${getPreviewAspectClass(currentRatio)}`}
         />
       </div>
-
+      
       <h4 className="font-black text-lg text-black uppercase tracking-tight mb-2 leading-tight">{image.angle}</h4>
-
+      
       <div className="text-left mb-4 flex-grow">
         <textarea
           rows={2}
@@ -200,15 +204,15 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
           value={revision}
           onChange={(e) => setRevision(e.target.value)}
         ></textarea>
-        <button
-          onClick={handleRegenerateClick}
+        <button 
+          onClick={handleRegenerateClick} 
           className="w-full neo-btn bg-[#00E5FF] text-black font-black uppercase py-2 border-[3px] border-black rounded-none"
         >
           {revision.trim() ? "TERAPKAN REVISI" : "VARIASI BARU"}
         </button>
       </div>
-
-      <button
+      
+      <button 
         onClick={handleDownloadImage}
         className="w-full neo-btn bg-black text-white font-black uppercase py-3 border-[3px] border-black rounded-none mb-4 flex items-center justify-center gap-2"
       >
@@ -220,38 +224,38 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
         <div className="absolute -top-3 right-4 bg-[#A3E635] border-2 border-black px-2 py-0.5 text-[10px] font-black uppercase transform rotate-2">
           VIDEO AI
         </div>
-
+        
         <div className="flex gap-1 mb-3">
           {['COMMERCIAL', 'UGC', 'CINEMATIC'].map(mode => (
-            <button
+            <button 
               key={mode}
               onClick={() => { playClickSound(); setVideoStyle(mode); }}
               className={`flex-1 text-[10px] font-black uppercase py-2 px-1 border-2 border-black transition-all ${videoStyle === mode ? 'bg-[#FFDE59] neo-shadow-sm translate-y-[-2px]' : 'bg-white hover:bg-gray-100'}`}
             >
-              {mode.slice(0, 4)}
+              {mode.slice(0,4)}
             </button>
           ))}
         </div>
 
         {videoStyle === 'UGC' && (
           <div className="flex gap-2 mb-3">
-            <button
-              onClick={() => { playClickSound(); setUgcSubStyle('SOFT'); }}
-              className={`flex-1 text-[10px] font-black uppercase py-1 px-2 border-2 border-black transition-all ${ugcSubStyle === 'SOFT' ? 'bg-[#FF90E8]' : 'bg-white'}`}
+             <button 
+                onClick={() => { playClickSound(); setUgcSubStyle('SOFT'); }}
+                className={`flex-1 text-[10px] font-black uppercase py-1 px-2 border-2 border-black transition-all ${ugcSubStyle === 'SOFT' ? 'bg-[#FF90E8]' : 'bg-white'}`}
             >
-              ☁️ SOFT
+                ☁️ SOFT
             </button>
-            <button
-              onClick={() => { playClickSound(); setUgcSubStyle('HARD'); }}
-              className={`flex-1 text-[10px] font-black uppercase py-1 px-2 border-2 border-black transition-all ${ugcSubStyle === 'HARD' ? 'bg-[#FF5252]' : 'bg-white'}`}
+            <button 
+                onClick={() => { playClickSound(); setUgcSubStyle('HARD'); }}
+                className={`flex-1 text-[10px] font-black uppercase py-1 px-2 border-2 border-black transition-all ${ugcSubStyle === 'HARD' ? 'bg-[#FF5252]' : 'bg-white'}`}
             >
-              🔥 HARD
+                🔥 HARD
             </button>
           </div>
         )}
 
         <div className="space-y-3 mb-4">
-          <select
+          <select 
             value={scriptLanguage}
             onChange={(e) => setScriptLanguage(e.target.value)}
             className="w-full text-[10px] p-2 border-[3px] border-black bg-white text-black font-bold focus:outline-none focus:bg-[#FFE066] rounded-none neo-shadow-sm"
@@ -269,7 +273,7 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
               onChange={(e) => setGeneratedScript(e.target.value)}
               className="w-full text-xs p-3 pr-10 border-[3px] border-black bg-white text-black font-bold focus:outline-none focus:bg-[#FFE066] rounded-none neo-shadow-sm placeholder-gray-400"
             />
-            <button
+            <button 
               onClick={handleAutoGenerateScript}
               disabled={isGeneratingScript}
               className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black text-white p-1.5 border-2 border-black hover:bg-[#FFDE59] hover:text-black transition-colors"
@@ -278,20 +282,20 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
               {isGeneratingScript ? (
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square" strokeLinejoin="miter"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z" /><path d="m14 7 3 3" /><path d="M5 6v4" /><path d="M19 14v4" /><path d="M10 2v2" /><path d="M7 8H3" /><path d="M21 16h-4" /><path d="M11 3H9" /></svg>
+                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square" strokeLinejoin="miter"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>
               )}
             </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-2">
-          <button
+          <button 
             onClick={() => handleGenerateVideoPrompt(true)}
             className="neo-btn w-full bg-[#A3E635] text-black border-[3px] border-black text-[10px] font-black uppercase py-2 rounded-none flex items-center justify-center gap-1"
           >
             <span>🎙️ DENGAN VOICEOVER</span>
           </button>
-          <button
+          <button 
             onClick={() => handleGenerateVideoPrompt(false)}
             className="neo-btn w-full bg-white text-black border-[3px] border-black text-[10px] font-black uppercase py-2 rounded-none flex items-center justify-center gap-1"
           >
@@ -301,23 +305,23 @@ export const ImageCard = ({ image, index, onRegenerate, currentRatio, isRegenera
       </div>
 
       <div className="mt-4">
-        <textarea
-          rows={3}
-          className="w-full p-3 text-[10px] border-[3px] border-black bg-gray-100 rounded-none focus:outline-none focus:bg-[#FFE066] transition-colors text-black font-mono font-bold mb-2 neo-shadow-sm"
-          value={videoPrompt}
-          onChange={(e) => setVideoPrompt(e.target.value)}
+         <textarea
+            rows={3}
+            className="w-full p-3 text-[10px] border-[3px] border-black bg-gray-100 rounded-none focus:outline-none focus:bg-[#FFE066] transition-colors text-black font-mono font-bold mb-2 neo-shadow-sm"
+            value={videoPrompt}
+            onChange={(e) => setVideoPrompt(e.target.value)}
         ></textarea>
-        <button
-          onClick={handleCopyVideoPrompt}
-          className={`neo-btn w-full py-3 rounded-none text-xs font-black uppercase border-[3px] border-black transition-all
-                ${copyStatus === 'COPIED!'
-              ? 'bg-[#A3E635] text-black'
-              : isPromptUpdated
-                ? 'bg-[#FFDE59] text-black animate-pulse'
-                : 'bg-black text-white hover:bg-gray-800'
-            }`}
+        <button 
+            onClick={handleCopyVideoPrompt}
+            className={`neo-btn w-full py-3 rounded-none text-xs font-black uppercase border-[3px] border-black transition-all
+                ${copyStatus === 'COPIED!' 
+                    ? 'bg-[#A3E635] text-black' 
+                    : isPromptUpdated 
+                        ? 'bg-[#FFDE59] text-black animate-pulse' 
+                        : 'bg-black text-white hover:bg-gray-800'
+                }`}
         >
-          {isPromptUpdated && copyStatus !== 'COPIED!' ? '✨ COPY UPDATED PROMPT' : copyStatus}
+            {isPromptUpdated && copyStatus !== 'COPIED!' ? '✨ COPY UPDATED PROMPT' : copyStatus}
         </button>
       </div>
     </div>

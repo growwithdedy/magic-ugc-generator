@@ -90,3 +90,9 @@ export const FALLBACK_MODEL_SHOTS = [
     script: 'Lihat produk luar biasa ini, sangat cocok untuk gaya Anda.'
   }
 ];
+
+export const PRODUCT_CONSISTENCY = `
+PRODUCT CLONE: The product(s) in the generated image MUST be a 100% exact replica of the reference product image. 
+Identical color, texture, branding, shape, and SCALE. 
+The product should look like it was physically placed in the scene, not just a generic version.
+`;

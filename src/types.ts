@@ -30,6 +30,7 @@ export interface ProductImage {
   id: string;
   file: File;
   name: string;
+  description?: string;
 }
 
 export interface GeneratedImage {

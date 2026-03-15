@@ -135,15 +135,21 @@ const writeString = (view: DataView, offset: number, string: string) => {
   }
 };
 
-export const callGenerativeApiWithRetry = async (apiUrl: string, payload: any, maxRetries = 3) => {
+export const callGenerativeApiWithRetry = async (apiUrl: string, payload: any, maxRetries = 3, timeoutMs = 30000) => {
   let attempt = 0;
   while (attempt < maxRetries) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         let errorData;
@@ -164,6 +170,9 @@ export const callGenerativeApiWithRetry = async (apiUrl: string, payload: any, m
 
     } catch (error: any) {
       attempt++;
+      if (error.name === 'AbortError') {
+        console.warn(`API request timed out (attempt ${attempt})`);
+      }
       if (attempt >= maxRetries) throw error;
       const delay = Math.pow(2, attempt) * 1000;
       await new Promise(resolve => setTimeout(resolve, delay));
