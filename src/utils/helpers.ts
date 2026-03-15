@@ -1,3 +1,5 @@
+import { getApiKey, rotateApiKey } from '../services/geminiService';
+
 export const fileToGenerativePart = async (file: File) => {
   const base64EncodedDataPromise = new Promise<string>((resolve) => {
     const reader = new FileReader();
@@ -159,6 +161,19 @@ export const callGenerativeApiWithRetry = async (apiUrl: string, payload: any, m
           throw new Error(`API Error: ${response.statusText}`);
         }
         
+        // Handle Rate Limit (429) with Failover
+        if (response.status === 429) {
+          console.warn("Rate limit hit. Attempting to rotate API key...");
+          const rotated = rotateApiKey();
+          if (rotated) {
+            // Update the URL with the new key
+            const newKey = getApiKey();
+            const urlObj = new URL(apiUrl);
+            urlObj.searchParams.set('key', newKey);
+            return callGenerativeApiWithRetry(urlObj.toString(), payload, maxRetries - 1, timeoutMs);
+          }
+        }
+
         if (errorData?.error?.message.includes('SAFETY')) {
            throw new Error('Konten diblokir oleh filter keamanan.');
         }

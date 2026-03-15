@@ -872,7 +872,7 @@ export default function App() {
               <div className="flex items-center gap-1.5">
                 <div className={`w-2 h-2 rounded-full border border-black/20 ${userApiKey ? 'bg-[#A3E635] shadow-[0_0_8px_#A3E635]' : 'bg-[#FF5252] animate-pulse'}`}></div>
                 <span className={`text-[10px] font-black uppercase ${userApiKey ? 'text-[#00C853]' : 'text-[#FF5252]'}`}>
-                  {userApiKey ? 'Aktif' : 'Nonaktif'}
+                  {userApiKey ? `${userApiKey.split(',').filter(Boolean).length} API AKTIF` : 'Nonaktif'}
                 </span>
               </div>
             </div>
@@ -1160,6 +1160,7 @@ export default function App() {
               {/* Step 2 */}
               <div className="text-center">
                 <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Langkah 2: Masukkan API Key Dibawah Ini</p>
+                <div className="text-[9px] text-gray-400 font-bold mb-2 uppercase">* Pisahkan dengan koma (,) untuk menggunakan lebih dari 1 key</div>
                 <div className="relative group">
                   <input 
                     type={showPassword ? "text" : "password"} 
@@ -1183,7 +1184,7 @@ export default function App() {
                   </button>
                 </div>
                 {keyValidationStatus === 'valid' && (
-                  <p className="text-[#00E676] text-xs font-black mt-2 uppercase tracking-wider">✅ API Key Valid & Aktif!</p>
+                  <p className="text-[#00E676] text-xs font-black mt-2 uppercase tracking-wider">✅ {tempKey.split(',').length} API Key Valid & Aktif!</p>
                 )}
                 {keyValidationStatus === 'invalid' && (
                   <p className="text-[#FF5252] text-xs font-black mt-2 uppercase tracking-wider">❌ API Key Tidak Valid / Salah!</p>
