@@ -88,6 +88,7 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [isValidatingKey, setIsValidatingKey] = useState(false);
   const [keyValidationStatus, setKeyValidationStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const ASPECT_RATIOS = ['9:16', '1:1', '16:9'];
   
@@ -813,16 +814,19 @@ export default function App() {
     playClickSound();
     if (!tempKey.trim()) {
       setKeyValidationStatus('invalid');
+      setValidationError("Key tidak boleh kosong");
       return;
     }
 
     setIsValidatingKey(true);
     setKeyValidationStatus('idle');
+    setValidationError(null);
     
-    const isValid = await validateApiKey(tempKey);
+    // Simple format check instead of API call
+    const result = await validateApiKey(tempKey);
     
     setIsValidatingKey(false);
-    if (isValid) {
+    if (result.valid) {
       localStorage.setItem('gemini_api_key', tempKey);
       setUserApiKey(tempKey);
       updateApiKey(tempKey);
@@ -830,9 +834,10 @@ export default function App() {
       setTimeout(() => {
         setShowKeyModal(false);
         setKeyValidationStatus('idle');
-      }, 1500);
+      }, 800);
     } else {
       setKeyValidationStatus('invalid');
+      setValidationError(result.error);
     }
   };
 
@@ -1187,7 +1192,9 @@ export default function App() {
                   <p className="text-[#00E676] text-xs font-black mt-2 uppercase tracking-wider">✅ {tempKey.split(',').length} API Key Valid & Aktif!</p>
                 )}
                 {keyValidationStatus === 'invalid' && (
-                  <p className="text-[#FF5252] text-xs font-black mt-2 uppercase tracking-wider">❌ API Key Tidak Valid / Salah!</p>
+                  <p className="text-[#FF5252] text-xs font-black mt-2 uppercase tracking-wider">
+                    ❌ {validationError || "Format API Key Tidak Valid!"}
+                  </p>
                 )}
               </div>
 

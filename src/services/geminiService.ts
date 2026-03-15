@@ -24,23 +24,21 @@ export const rotateApiKey = () => {
   return true;
 };
 
-export const validateApiKey = async (key: string): Promise<boolean> => {
-  try {
-    const keys = key.split(',').map(k => k.trim()).filter(Boolean);
-    if (keys.length === 0) return false;
-    
-    // Validate the first key as a representative
-    const tempAi = new GoogleGenAI({ apiKey: keys[0] });
-    // Try a very simple prompt to validate the key
-    await tempAi.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: "ping",
-    });
-    return true;
-  } catch (error) {
-    console.error("API Key validation failed:", error);
-    return false;
+export const validateApiKey = async (key: string): Promise<{ valid: boolean; error?: string }> => {
+  const keys = key.split(',').map(k => k.trim()).filter(Boolean);
+  if (keys.length === 0) return { valid: false, error: "Key tidak boleh kosong" };
+  
+  // Just check if it looks like a Google API Key (usually starts with AIza)
+  const isValidFormat = keys.every(k => k.startsWith("AIza") && k.length > 20);
+  
+  if (!isValidFormat) {
+    return { 
+      valid: false, 
+      error: "Format API Key tidak valid. Pastikan diawali dengan 'AIza'." 
+    };
   }
+
+  return { valid: true };
 };
 
 export const getGeminiModel = (modelName: string = "gemini-3-flash-preview") => {
