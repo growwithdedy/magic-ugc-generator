@@ -200,9 +200,10 @@ export default function App() {
       }
       
       return { name: text || file.name, description: '' };
-    } catch (error) {
+    } catch (error: any) {
       console.error("Product analysis failed:", error);
-      // Fallback to file name to prevent getting stuck in "Mendeteksi..."
+      // Fallback to file name but log the error message for debugging
+      console.warn(`Detection fallback used due to: ${error.message}`);
       return { name: file.name, description: '' };
     }
   };
@@ -391,9 +392,16 @@ export default function App() {
       if (!isReload) {
         setAppState('selecting');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Recommendation failed:", error);
-      setApiError('Gagal mendapatkan rekomendasi. Coba lagi dengan gambar lain.');
+      const msg = error.message || '';
+      if (msg.includes('API_KEY_INVALID')) {
+        setApiError('API Key Tidak Valid. Silakan periksa kembali di menu pengaturan.');
+      } else if (msg.includes('Generative Language API has not been used')) {
+        setApiError('API Belum Aktif. Silakan aktifkan Generative Language API di Google Cloud Console.');
+      } else {
+        setApiError(`Gagal mendapatkan rekomendasi: ${msg || 'Coba lagi dengan gambar lain.'}`);
+      }
     } finally {
       setIsLoading(false);
     }

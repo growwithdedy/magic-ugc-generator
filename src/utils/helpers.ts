@@ -161,12 +161,28 @@ export const callGenerativeApiWithRetry = async (apiUrl: string, payload: any, m
           throw new Error(`API Error: ${response.statusText}`);
         }
         
+        const errorMessage = errorData?.error?.message || response.statusText;
+
+        // Handle Model Fallback (404 or 403 for preview models)
+        if ((response.status === 404 || response.status === 403) && (apiUrl.includes('gemini-3') || apiUrl.includes('gemini-2.5'))) {
+          let fallbackModel = 'gemini-1.5-flash';
+          
+          // If it's an image request, try gemini-2.5-flash-image first
+          if (payload.generationConfig?.responseModalities?.includes('IMAGE')) {
+            fallbackModel = 'gemini-2.5-flash-image';
+          }
+
+          console.warn(`Model not available or restricted. Falling back to ${fallbackModel}...`);
+          const fallbackUrl = apiUrl.replace(/models\/[a-zA-Z0-9.-]+/, `models/${fallbackModel}`);
+          
+          return callGenerativeApiWithRetry(fallbackUrl, payload, maxRetries, timeoutMs);
+        }
+
         // Handle Rate Limit (429) with Failover
         if (response.status === 429) {
           console.warn("Rate limit hit. Attempting to rotate API key...");
           const rotated = rotateApiKey();
           if (rotated) {
-            // Update the URL with the new key
             const newKey = getApiKey();
             const urlObj = new URL(apiUrl);
             urlObj.searchParams.set('key', newKey);
@@ -174,10 +190,10 @@ export const callGenerativeApiWithRetry = async (apiUrl: string, payload: any, m
           }
         }
 
-        if (errorData?.error?.message.includes('SAFETY')) {
+        if (errorMessage.includes('SAFETY')) {
            throw new Error('Konten diblokir oleh filter keamanan.');
         }
-        throw new Error(`API Error: ${errorData?.error?.message || response.statusText}`);
+        throw new Error(`API Error: ${errorMessage}`);
       }
 
       const result = await response.json();
@@ -188,6 +204,9 @@ export const callGenerativeApiWithRetry = async (apiUrl: string, payload: any, m
       if (error.name === 'AbortError') {
         console.warn(`API request timed out (attempt ${attempt})`);
       }
+      
+      // If it's a model error, we already handled it above with fallback
+      // If it's a network error, we retry
       if (attempt >= maxRetries) throw error;
       const delay = Math.pow(2, attempt) * 1000;
       await new Promise(resolve => setTimeout(resolve, delay));
